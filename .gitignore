@@ -1,0 +1,47 @@
+# Build outputs
+build/
+cmake-build-*/
+out/
+.cache/
+compile_commands.json
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Test/benchmark binaries (in case CMake is invoked from the source tree)
+test_args
+test_enum
+test_json
+test_struct
+showcase
+bench_json
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archives — keep tree clean
+*.zip
+*.tar
+*.tar.gz
+
+# internal
+docs/
+
+
