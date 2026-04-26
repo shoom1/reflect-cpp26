@@ -16,7 +16,11 @@ jobs:
   clang-p2996:
     name: Build & test (Bloomberg Clang P2996 fork)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # First run compiles LLVM/Clang from source (~120-130 min on a
+    # GitHub-hosted 4-vCPU runner). Subsequent runs hit the GHA layer
+    # cache and finish in minutes. 240 min gives margin for the cold
+    # build; cached runs finish well under it.
+    timeout-minutes: 240
 
     steps:
       - name: Checkout
