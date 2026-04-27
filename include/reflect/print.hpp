@@ -50,8 +50,9 @@ std::string to_string(T const& value);
 namespace detail {
 
     consteval auto print_members_of(std::meta::info t) {
-        return std::meta::nonstatic_data_members_of(
-            t, std::meta::access_context::current());
+        return std::define_static_array(
+            std::meta::nonstatic_data_members_of(
+                t, std::meta::access_context::current()));
     }
 
     // ---------------------------------------------------------------------------

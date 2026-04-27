@@ -41,7 +41,7 @@ namespace enum_detail {
     // constant expression — pointer to subobject of heap-allocated object
     // is not a constant expression."
     consteval auto enum_members_of(std::meta::info e) {
-        return std::meta::enumerators_of(e);
+        return std::define_static_array(std::meta::enumerators_of(e));
     }
 
 } // namespace enum_detail

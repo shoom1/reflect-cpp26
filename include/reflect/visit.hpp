@@ -44,9 +44,19 @@ namespace detail {
     // `current()` so the library sees whatever the caller's scope sees —
     // public members for typical users, more if the caller has friend
     // access.
-    consteval auto members_of(std::meta::info t) {
-        return std::meta::nonstatic_data_members_of(
-            t, std::meta::access_context::current());
+    //
+    // Wrapped in std::define_static_array to materialize the vector
+    // contents into static storage, which makes the result usable as
+    // the range of `template for (constexpr auto … : …)`. Without this,
+    // the std::vector returned by nonstatic_data_members_of has a
+    // heap-allocated data pointer that isn't a constant expression.
+    //
+    // Also: name is `data_members` (not `members_of`) to avoid an ADL
+    // clash with `std::meta::members_of` (R10) when calling on `^^T`.
+    consteval auto data_members(std::meta::info t) {
+        return std::define_static_array(
+            std::meta::nonstatic_data_members_of(
+                t, std::meta::access_context::current()));
     }
 } // namespace detail
 
@@ -56,7 +66,7 @@ namespace detail {
 
 template <reflectable T>
 consteval std::size_t field_count() {
-    return detail::members_of(^^T).size();
+    return detail::data_members(^^T).size();
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +78,7 @@ consteval auto field_names() {
     constexpr auto count = field_count<T>();
     std::array<std::string_view, count> names{};
     std::size_t i = 0;
-    template for (constexpr auto member : detail::members_of(^^T)) {
+    template for (constexpr auto member : detail::data_members(^^T)) {
         names[i++] = std::meta::identifier_of(member);
     }
     return names;
@@ -85,7 +95,7 @@ consteval auto field_names() {
 
 template <reflectable T, typename F>
 constexpr void for_each_field(T& obj, F&& visitor) {
-    template for (constexpr auto member : detail::members_of(^^T)) {
+    template for (constexpr auto member : detail::data_members(^^T)) {
         visitor(
             std::meta::identifier_of(member),
             obj.[:member:]
@@ -95,7 +105,7 @@ constexpr void for_each_field(T& obj, F&& visitor) {
 
 template <reflectable T, typename F>
 constexpr void for_each_field(T const& obj, F&& visitor) {
-    template for (constexpr auto member : detail::members_of(^^T)) {
+    template for (constexpr auto member : detail::data_members(^^T)) {
         visitor(
             std::meta::identifier_of(member),
             obj.[:member:]
@@ -117,7 +127,7 @@ namespace detail {
 template <reflectable T, typename F>
 constexpr void for_each_field_indexed(T const& obj, F&& visitor) {
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        constexpr auto members = detail::members_of(^^T);
+        constexpr auto members = detail::data_members(^^T);
         (visitor(
             detail::index_c<Is>{},
             std::meta::identifier_of(members[Is]),
@@ -129,7 +139,7 @@ constexpr void for_each_field_indexed(T const& obj, F&& visitor) {
 template <reflectable T, typename F>
 constexpr void for_each_field_indexed(T& obj, F&& visitor) {
     [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        constexpr auto members = detail::members_of(^^T);
+        constexpr auto members = detail::data_members(^^T);
         (visitor(
             detail::index_c<Is>{},
             std::meta::identifier_of(members[Is]),
@@ -147,7 +157,7 @@ constexpr void for_each_field_indexed(T& obj, F&& visitor) {
 
 template <reflectable T, typename F>
 consteval void for_each_field_meta(F&& visitor) {
-    template for (constexpr auto member : detail::members_of(^^T)) {
+    template for (constexpr auto member : detail::data_members(^^T)) {
         visitor(member);
     }
 }
@@ -159,7 +169,7 @@ consteval void for_each_field_meta(F&& visitor) {
 namespace detail {
     template <reflectable T>
     consteval std::meta::info find_field(std::string_view name) {
-        for (auto member : members_of(^^T)) {
+        for (auto member : data_members(^^T)) {
             if (std::meta::identifier_of(member) == name)
                 return member;
         }
@@ -190,7 +200,7 @@ constexpr auto const& field_value(T const& obj) {
 
 template <reflectable T>
 consteval bool has_field(std::string_view name) {
-    for (auto member : detail::members_of(^^T)) {
+    for (auto member : detail::data_members(^^T)) {
         if (std::meta::identifier_of(member) == name)
             return true;
     }
@@ -204,7 +214,7 @@ consteval bool has_field(std::string_view name) {
 template <reflectable T, typename F>
 constexpr auto transform_fields(T const& obj, F&& transformer) {
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        constexpr auto members = detail::members_of(^^T);
+        constexpr auto members = detail::data_members(^^T);
         return std::make_tuple(transformer(
             std::meta::identifier_of(members[Is]),
             obj.[:members[Is]:]

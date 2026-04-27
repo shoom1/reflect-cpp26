@@ -31,8 +31,9 @@ namespace reflect {
 
 namespace detail {
     consteval auto tuple_members_of(std::meta::info t) {
-        return std::meta::nonstatic_data_members_of(
-            t, std::meta::access_context::current());
+        return std::define_static_array(
+            std::meta::nonstatic_data_members_of(
+                t, std::meta::access_context::current()));
     }
 
     // Build a tuple type from a struct's member types
