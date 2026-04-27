@@ -11,7 +11,11 @@ target_include_directories(reflect INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_compile_features(reflect INTERFACE cxx_std_26)
+# Use -std=c++26 directly rather than target_compile_features(cxx_std_26):
+# bleeding-edge Clang/GCC builds aren't always known to CMake's compile-
+# features database for the C++26 meta-feature, which causes a hard
+# configure error ("cxx_std_26 is not known to CXX compiler").
+target_compile_options(reflect INTERFACE -std=c++26)
 
 # Detect compiler and add reflection flags
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
