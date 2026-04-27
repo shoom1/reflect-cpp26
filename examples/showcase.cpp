@@ -194,6 +194,61 @@ int main() {
     auto bob_json = reflect::to_json(bob, {.skip_nullopt = true});
     std::cout << "Bob (skip_nullopt): " << bob_json << "\n\n";
 
+    // -----------------------------------------------------------------------
+    // 8. STRUCTURAL DIFF
+    // -----------------------------------------------------------------------
+    std::cout << "--- diff ---\n";
+
+    Person alice_v2{"Alice", 31, "alice@new.example.com"};
+
+    std::cout << "has_changes(alice, alice_v2) → "
+              << reflect::has_changes(alice, alice_v2) << "\n";
+    std::cout << "change_count: " << reflect::change_count(alice, alice_v2) << "\n";
+    std::cout << "diff_summary: " << reflect::diff_summary(alice, alice_v2) << "\n";
+
+    std::cout << "changed fields: ";
+    for (auto name : reflect::changed_field_names(alice, alice_v2))
+        std::cout << name << " ";
+    std::cout << "\n\n";
+
+    // -----------------------------------------------------------------------
+    // 9. CLI ARGUMENT PARSING
+    // -----------------------------------------------------------------------
+    std::cout << "--- args ---\n";
+
+    struct CliArgs {
+        std::string input;
+        int verbose = 0;
+        bool debug  = false;
+        std::optional<std::string> output;
+    };
+
+    // Hand-built argv to keep the example self-contained.
+    auto parsed_args = reflect::parse_args<CliArgs>(std::vector<std::string_view>{
+        "--input", "data.csv",
+        "--verbose", "2",
+        "--debug",
+        "--output", "out.json",
+    });
+
+    std::cout << "input:   " << parsed_args.input   << "\n";
+    std::cout << "verbose: " << parsed_args.verbose << "\n";
+    std::cout << "debug:   " << std::boolalpha << parsed_args.debug << "\n";
+    std::cout << "output:  " << parsed_args.output.value_or("(none)") << "\n";
+
+    std::cout << "\nGenerated --help text:\n"
+              << reflect::args_help<CliArgs>("myprog") << "\n";
+
+    // -----------------------------------------------------------------------
+    // 10. std::format INTEGRATION
+    // -----------------------------------------------------------------------
+    std::cout << "--- format ---\n";
+    std::cout << "reflect::format(p):       " << reflect::format(p) << "\n";
+    std::cout << "reflect::format(trade):   " << reflect::format(trade) << "\n";
+    std::cout << "JSON compact via format:  "
+              << reflect::format(trade, reflect::format_detail::format_mode::json_compact)
+              << "\n\n";
+
     std::cout << "=== All examples passed! ===\n";
     return 0;
 }
