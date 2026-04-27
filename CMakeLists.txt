@@ -37,11 +37,24 @@ if (REFLECT_BUILD_EXAMPLES)
 endif()
 
 # Tests
+# Listed explicitly rather than file(GLOB ...): a glob runs at configure
+# time, so a new test_xxx.cpp added on disk wouldn't be picked up until
+# CMake re-configures. With an explicit list, adding a test is a 20-second
+# tax for guaranteed correctness — a missing entry here surfaces as a
+# linker/test-discovery failure on the next build, not a silently-skipped
+# test.
+set(REFLECT_TEST_SOURCES
+    tests/test_args.cpp
+    tests/test_critical_issues.cpp
+    tests/test_enum.cpp
+    tests/test_json.cpp
+    tests/test_struct.cpp
+)
+
 option(REFLECT_BUILD_TESTS "Build tests" ON)
 if (REFLECT_BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     enable_testing()
-    file(GLOB TEST_SOURCES tests/*.cpp)
-    foreach(test_src ${TEST_SOURCES})
+    foreach(test_src ${REFLECT_TEST_SOURCES})
         get_filename_component(test_name ${test_src} NAME_WE)
         add_executable(${test_name} ${test_src})
         target_link_libraries(${test_name} PRIVATE reflect)
@@ -50,10 +63,13 @@ if (REFLECT_BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 endif()
 
 # Benchmarks
+set(REFLECT_BENCHMARK_SOURCES
+    benchmarks/bench_json.cpp
+)
+
 option(REFLECT_BUILD_BENCHMARKS "Build benchmarks" ON)
 if (REFLECT_BUILD_BENCHMARKS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks")
-    file(GLOB BENCH_SOURCES benchmarks/*.cpp)
-    foreach(bench_src ${BENCH_SOURCES})
+    foreach(bench_src ${REFLECT_BENCHMARK_SOURCES})
         get_filename_component(bench_name ${bench_src} NAME_WE)
         add_executable(${bench_name} ${bench_src})
         target_link_libraries(${bench_name} PRIVATE reflect)
