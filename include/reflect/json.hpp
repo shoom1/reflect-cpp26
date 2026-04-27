@@ -128,17 +128,25 @@ namespace json_detail {
         out.append(static_cast<std::size_t>(depth * indent), ' ');
     }
 
-    // Forward declaration of the dispatch primary. Required so that the
-    // array / map / struct overloads below can name-resolve `serialize`
-    // for their element types at template definition time.
+    // Forward declarations for the three compound-type overloads.
     //
-    // Every templated overload below shares this exact parameter shape
-    // (T const&); they differ only by their requires-clauses, which lets
-    // partial ordering pick the constrained overload over this primary.
-    // Without uniform parameter types, partial ordering can't compare
-    // (T const&) against (T) and the call becomes ambiguous.
-    template <typename T>
-    void serialize(std::string& out, T const& value, json_opts const& opts, int depth);
+    // Each of these overloads recursively calls `serialize` on its
+    // elements/members. Because they appear later in the file in
+    // sequence (array, then map, then struct), the second and third
+    // would not see the first/each other at template-definition time
+    // without these forward decls — so a recursive call binding to a
+    // not-yet-declared overload would fall through to whatever generic
+    // candidate was visible (or, with an unconstrained primary, link
+    // against a never-defined symbol).
+    //
+    // No unconstrained primary template: with all constrained overloads
+    // declared at this point and partial ordering able to pick by
+    // constraints alone (uniform `T const&` parameter shape), the
+    // recursive `serialize(out, x, opts, depth+1)` always resolves to
+    // the right overload at instantiation time.
+    template <json_array  T> void serialize(std::string& out, T const& range, json_opts const& opts, int depth);
+    template <json_map    T> void serialize(std::string& out, T const& map,   json_opts const& opts, int depth);
+    template <json_struct T> void serialize(std::string& out, T const& obj,   json_opts const& opts, int depth);
 
     // --- Null ---
     inline void serialize(std::string& out, std::nullptr_t, json_opts const&, int) {

@@ -77,8 +77,30 @@ namespace detail {
     // Core serialization dispatch — writes directly to std::string
     // ---------------------------------------------------------------------------
 
-    template <typename T>
-    void write_value(std::string& out, T const& value);
+    // Forward declarations for the constrained overloads that recurse
+    // into each other (reflectable struct → range, range → pair, etc.)
+    // and for the leaf overloads they call but which are defined later
+    // in this namespace. Without these, recursive calls in earlier
+    // overloads' bodies see only an unconstrained primary template
+    // (the original forward declaration here) and bind to it — leaving
+    // the call without a definition and producing a link-time error
+    // like "undefined reference to write_value<Point>".
+    //
+    // No unconstrained primary template: with all constrained overloads
+    // forward-declared with the same parameter shape (T const&), partial
+    // ordering picks by constraints alone.
+    template <typename T> requires std::is_pointer_v<T>
+        void write_value(std::string& out, T const& value);
+    template <is_smart_pointer T>
+        void write_value(std::string& out, T const& value);
+    template <reflect::is_optional T>
+        void write_value(std::string& out, T const& value);
+    template <is_pair T>
+        void write_value(std::string& out, T const& value);
+    template <reflect::is_range T>
+        void write_value(std::string& out, T const& range);
+    template <reflectable T>
+        void write_value(std::string& out, T const& obj);
 
     // Booleans
     inline void write_value(std::string& out, bool value) {
