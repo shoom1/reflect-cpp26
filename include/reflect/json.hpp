@@ -128,9 +128,13 @@ namespace json_detail {
         out.append(static_cast<std::size_t>(depth * indent), ' ');
     }
 
-    // Forward declaration
-    template <typename T>
-    void serialize(std::string& out, T const& value, json_opts const& opts, int depth);
+    // No unconstrained forward declaration on purpose: it would create
+    // an ambiguity with each constrained overload below (the primary
+    // takes T const&, the overloads take T-by-value or T const& with
+    // constraints — partial ordering deems them non-comparable). The
+    // recursive call inside the json_struct overload performs a
+    // dependent-name lookup at instantiation time, by which point all
+    // overloads in this namespace are visible.
 
     // --- Null ---
     inline void serialize(std::string& out, std::nullptr_t, json_opts const&, int) {
