@@ -1,10 +1,9 @@
-// examples/critical_issues.cpp — regression test for the issues described in
-// docs/notes/code-review-2026-04.md. Once the fixes land, every section in
-// this file should succeed; if any one regresses, the section reports the
-// observed wrong value alongside the expected one.
+// tests/test_critical_issues.cpp — regression test for the issues
+// described in docs/notes/code-review-2026-04.md. Once the fixes land,
+// every section in this file should succeed; if any one regresses, the
+// section reports the observed wrong value alongside the expected one.
 //
-// Compile (Bloomberg Clang fork / godbolt "x86-64 clang (reflection - C++26)"):
-//   clang++ -std=c++26 -freflection-latest -I../include critical_issues.cpp
+// Built and run via ctest (registered by CMakeLists.txt's tests glob).
 
 #include <reflect/reflect.hpp>
 

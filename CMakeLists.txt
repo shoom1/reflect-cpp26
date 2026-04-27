@@ -34,9 +34,6 @@ option(REFLECT_BUILD_EXAMPLES "Build example programs" ON)
 if (REFLECT_BUILD_EXAMPLES)
     add_executable(showcase examples/showcase.cpp)
     target_link_libraries(showcase PRIVATE reflect)
-
-    add_executable(critical_issues examples/critical_issues.cpp)
-    target_link_libraries(critical_issues PRIVATE reflect)
 endif()
 
 # Tests

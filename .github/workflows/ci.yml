@@ -45,6 +45,3 @@ jobs:
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
-
-      - name: Run critical-issues regression
-        run: ./build/critical_issues
