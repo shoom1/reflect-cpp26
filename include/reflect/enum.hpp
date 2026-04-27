@@ -31,6 +31,21 @@
 
 namespace reflect {
 
+namespace enum_detail {
+
+    // Wrap std::meta::enumerators_of in a local consteval helper so that
+    // `template for (constexpr auto e : enum_members_of(^^E))` is a
+    // constant expression in `constexpr` (non-consteval) callers. Without
+    // this wrapper, some P2996 R10 implementations reject the direct
+    // call with: "constexpr variable '__range' must be initialized by a
+    // constant expression — pointer to subobject of heap-allocated object
+    // is not a constant expression."
+    consteval auto enum_members_of(std::meta::info e) {
+        return std::meta::enumerators_of(e);
+    }
+
+} // namespace enum_detail
+
 // ---------------------------------------------------------------------------
 // Concept: any scoped or unscoped enum
 // ---------------------------------------------------------------------------
@@ -44,7 +59,7 @@ concept enumeration = std::is_enum_v<E>;
 
 template <enumeration E>
 consteval std::size_t enum_count() {
-    return std::meta::enumerators_of(^^E).size();
+    return enum_detail::enum_members_of(^^E).size();
 }
 
 // ---------------------------------------------------------------------------
@@ -55,7 +70,7 @@ template <enumeration E>
 constexpr std::string_view enum_to_string(E value) {
     // Use a simple linear scan — the enumerator list is typically tiny.
     // The expansion statement unrolls this at compile time.
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         if (value == [:e:])
             return std::meta::identifier_of(e);
     }
@@ -68,7 +83,7 @@ constexpr std::string_view enum_to_string(E value) {
 
 template <enumeration E>
 constexpr std::optional<E> enum_from_string(std::string_view name) {
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         if (name == std::meta::identifier_of(e))
             return [:e:];
     }
@@ -84,7 +99,7 @@ consteval auto enum_names() {
     constexpr auto count = enum_count<E>();
     std::array<std::string_view, count> names{};
     std::size_t i = 0;
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         names[i++] = std::meta::identifier_of(e);
     }
     return names;
@@ -99,7 +114,7 @@ consteval auto enum_values() {
     constexpr auto count = enum_count<E>();
     std::array<E, count> values{};
     std::size_t i = 0;
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         values[i++] = [:e:];
     }
     return values;
@@ -114,7 +129,7 @@ consteval auto enum_entries() {
     constexpr auto count = enum_count<E>();
     std::array<std::pair<E, std::string_view>, count> entries{};
     std::size_t i = 0;
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         entries[i++] = {[:e:], std::meta::identifier_of(e)};
     }
     return entries;
@@ -126,7 +141,7 @@ consteval auto enum_entries() {
 
 template <enumeration E>
 constexpr bool enum_contains(std::underlying_type_t<E> raw) {
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         if (static_cast<std::underlying_type_t<E>>([:e:]) == raw)
             return true;
     }
@@ -145,7 +160,7 @@ constexpr bool enum_contains(E value) {
 
 template <enumeration E>
 constexpr std::optional<E> enum_cast(std::underlying_type_t<E> raw) {
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         if (static_cast<std::underlying_type_t<E>>([:e:]) == raw)
             return [:e:];
     }
@@ -159,7 +174,7 @@ constexpr std::optional<E> enum_cast(std::underlying_type_t<E> raw) {
 template <enumeration E>
 constexpr std::optional<std::size_t> enum_index(E value) {
     std::size_t i = 0;
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         if (value == [:e:])
             return i;
         ++i;
@@ -182,7 +197,7 @@ constexpr std::string flags_to_string(E value, std::string_view separator = "|")
     auto raw = static_cast<std::underlying_type_t<E>>(value);
     std::string result;
 
-    template for (constexpr auto e : std::meta::enumerators_of(^^E)) {
+    template for (constexpr auto e : enum_detail::enum_members_of(^^E)) {
         constexpr auto flag_val = static_cast<std::underlying_type_t<E>>([:e:]);
         // Skip zero-valued enumerators (e.g. "none = 0") unless value is 0
         if constexpr (flag_val != 0) {
