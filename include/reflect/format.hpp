@@ -54,7 +54,13 @@ namespace format_detail {
 
     enum class format_mode { debug, json_compact, json_pretty };
 
-    inline format_mode parse_mode(std::string_view spec) {
+    // Must be constexpr: it's called from the formatter's `parse`
+    // method, which in turn is invoked by std::basic_format_string's
+    // *consteval* constructor when validating the format string at
+    // compile time. An `inline` (non-constexpr) function in that chain
+    // breaks std::format("{:j}", obj) with: "call to consteval function
+    // 'basic_format_string<…>' is not a constant expression".
+    constexpr format_mode parse_mode(std::string_view spec) {
         for (char c : spec) {
             if (c == 'j') return format_mode::json_compact;
             if (c == 'J') return format_mode::json_pretty;
