@@ -6,59 +6,45 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Single concurrency group per ref: a new push to a PR cancels the
-# previous run instead of queueing a second one.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
-  clang-p2996:
+  build-and-test:
     name: Build & test (Bloomberg Clang P2996 fork)
     runs-on: ubuntu-latest
-    # First run compiles LLVM/Clang from source (~120-130 min on a
-    # GitHub-hosted 4-vCPU runner). Subsequent runs hit the GHA layer
-    # cache and finish in minutes. 240 min gives margin for the cold
-    # build; cached runs finish well under it.
-    timeout-minutes: 240
+    timeout-minutes: 30
+
+    # Pull the prebuilt P2996 image from GHCR. To rebuild it, run the
+    # "Build clang-p2996 image" workflow manually (Actions tab).
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/clang-p2996:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Clang P2996 image (cached)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: .github/clang-p2996.Dockerfile
-          tags: clang-p2996:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Configure
         run: |
-          docker run --rm -v "$PWD:/work" -w /work clang-p2996:ci \
-            cmake -S . -B build -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_CXX_COMPILER=clang++ \
-              -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
-              -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++"
 
       - name: Build
-        run: |
-          docker run --rm -v "$PWD:/work" -w /work clang-p2996:ci \
-            cmake --build build --parallel
+        run: cmake --build build --parallel
 
       - name: Run tests
-        run: |
-          docker run --rm -v "$PWD:/work" -w /work clang-p2996:ci \
-            ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --output-on-failure
 
       - name: Run critical-issues regression
-        run: |
-          docker run --rm -v "$PWD:/work" -w /work clang-p2996:ci \
-            ./build/critical_issues
+        run: ./build/critical_issues
