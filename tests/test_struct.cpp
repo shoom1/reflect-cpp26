@@ -12,6 +12,7 @@
 #include <cassert>
 #include <iostream>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <unordered_set>
