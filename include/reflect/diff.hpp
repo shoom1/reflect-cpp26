@@ -21,6 +21,7 @@
 #define REFLECT_DIFF_HPP
 
 #include "reflect/traits.hpp"
+#include <algorithm>   // std::ranges::equal
 #include <charconv>
 #include <cstddef>
 #include <ranges>

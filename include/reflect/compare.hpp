@@ -26,6 +26,7 @@
 #define REFLECT_COMPARE_HPP
 
 #include "reflect/traits.hpp"
+#include <algorithm>   // std::ranges::equal
 #include <compare>
 #include <cstddef>
 #include <cstdint>
