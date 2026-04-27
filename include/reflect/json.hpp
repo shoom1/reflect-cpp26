@@ -128,13 +128,17 @@ namespace json_detail {
         out.append(static_cast<std::size_t>(depth * indent), ' ');
     }
 
-    // No unconstrained forward declaration on purpose: it would create
-    // an ambiguity with each constrained overload below (the primary
-    // takes T const&, the overloads take T-by-value or T const& with
-    // constraints — partial ordering deems them non-comparable). The
-    // recursive call inside the json_struct overload performs a
-    // dependent-name lookup at instantiation time, by which point all
-    // overloads in this namespace are visible.
+    // Forward declaration of the dispatch primary. Required so that the
+    // array / map / struct overloads below can name-resolve `serialize`
+    // for their element types at template definition time.
+    //
+    // Every templated overload below shares this exact parameter shape
+    // (T const&); they differ only by their requires-clauses, which lets
+    // partial ordering pick the constrained overload over this primary.
+    // Without uniform parameter types, partial ordering can't compare
+    // (T const&) against (T) and the call becomes ambiguous.
+    template <typename T>
+    void serialize(std::string& out, T const& value, json_opts const& opts, int depth);
 
     // --- Null ---
     inline void serialize(std::string& out, std::nullptr_t, json_opts const&, int) {
@@ -149,7 +153,7 @@ namespace json_detail {
     // --- Integers ---
     template <typename T>
         requires (std::is_integral_v<T> && !std::is_same_v<T, bool>)
-    void serialize(std::string& out, T value, json_opts const&, int) {
+    void serialize(std::string& out, T const& value, json_opts const&, int) {
         char buf[64];
         auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), value);
         out.append(buf, static_cast<std::size_t>(ptr - buf));
@@ -158,7 +162,7 @@ namespace json_detail {
     // --- Floating point — guard NaN/Inf which aren't valid JSON ---
     template <typename T>
         requires std::is_floating_point_v<T>
-    void serialize(std::string& out, T value, json_opts const&, int) {
+    void serialize(std::string& out, T const& value, json_opts const&, int) {
         if (!std::isfinite(value))
             throw json_parse_error(
                 "cannot serialize non-finite floating-point value as JSON "
@@ -182,7 +186,7 @@ namespace json_detail {
     // --- Enums ---
     template <typename T>
         requires std::is_enum_v<T>
-    void serialize(std::string& out, T value, json_opts const& opts, int depth) {
+    void serialize(std::string& out, T const& value, json_opts const& opts, int depth) {
 #if REFLECT_JSON_HAS_ENUM
         auto name = reflect::enum_to_string(value);
         if (!name.empty()) {
