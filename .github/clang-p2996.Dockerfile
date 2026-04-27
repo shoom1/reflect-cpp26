@@ -1,9 +1,8 @@
 # Dockerfile for Bloomberg's Clang P2996 fork + matching libc++.
 #
-# This image is consumed by .github/workflows/ci.yml. The first build
-# compiles LLVM/Clang from source (~45-60 min on a GitHub-hosted runner);
-# subsequent builds reuse the GitHub Actions layer cache and are fast as
-# long as P2996_REF and the apt package set don't change.
+# Multi-stage layering: each major step is a separate RUN so that a
+# failure in (e.g.) the runtimes configure doesn't invalidate the
+# 2-hour clang build cache.
 #
 # To rebuild manually:
 #   docker build -f .github/clang-p2996.Dockerfile -t clang-p2996 .
@@ -31,29 +30,37 @@ RUN git clone --depth 1 --branch ${P2996_REF} \
 
 WORKDIR /src/llvm
 
-# Build clang + the matching libc++ (stdlib reflection headers ship in
-# libc++, NOT libstdc++, so users must compile with -stdlib=libc++).
+# Step 1: configure. Cheap; isolating it lets cache survive bad flags.
+# libunwind is required because libcxxabi defaults LIBCXXABI_USE_LLVM_UNWINDER=ON
+# in this fork. Skipping runtime tests saves ~10 min and a lot of disk.
 RUN cmake -S llvm -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_ENABLE_PROJECTS="clang" \
-    -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" \
+    -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind" \
     -DLLVM_TARGETS_TO_BUILD=X86 \
     -DLLVM_ENABLE_ASSERTIONS=OFF \
-    -DCMAKE_INSTALL_PREFIX=/opt/clang-p2996 \
- && cmake --build build --target install \
- && cmake --build build --target install-cxx install-cxxabi \
+    -DLIBCXX_INCLUDE_TESTS=OFF \
+    -DLIBCXXABI_INCLUDE_TESTS=OFF \
+    -DLIBUNWIND_INCLUDE_TESTS=OFF \
+    -DCMAKE_INSTALL_PREFIX=/opt/clang-p2996
+
+# Step 2: build clang and the runtimes (the long step, ~2h).
+RUN cmake --build build
+
+# Step 3: install. Fast.
+RUN cmake --build build --target install \
  && rm -rf /src
 
 ENV PATH=/opt/clang-p2996/bin:$PATH
 ENV CC=clang
 ENV CXX=clang++
 
-# Sanity check: the toolchain understands -freflection-latest.
-RUN echo '#include <meta>\nint main(){}' > /tmp/t.cpp \
- && clang++ -std=c++26 -stdlib=libc++ -freflection-latest \
-        -I/opt/clang-p2996/include/c++/v1 \
-        -L/opt/clang-p2996/lib -Wl,-rpath,/opt/clang-p2996/lib \
-        /tmp/t.cpp -o /tmp/t \
+# Sanity check: clang understands -freflection-latest and finds its own
+# libc++ headers. We rely on auto-discovery rather than hardcoding paths
+# because LLVM_ENABLE_PER_TARGET_RUNTIME_DIR puts headers under
+# include/<triple>/c++/v1, which varies by host.
+RUN printf '#include <meta>\nint main(){}\n' > /tmp/t.cpp \
+ && clang++ -std=c++26 -stdlib=libc++ -freflection-latest /tmp/t.cpp -o /tmp/t \
  && /tmp/t \
  && rm /tmp/t.cpp /tmp/t
 
