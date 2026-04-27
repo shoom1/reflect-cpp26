@@ -29,13 +29,6 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     endif()
 endif()
 
-# Examples
-option(REFLECT_BUILD_EXAMPLES "Build example programs" ON)
-if (REFLECT_BUILD_EXAMPLES)
-    add_executable(showcase examples/showcase.cpp)
-    target_link_libraries(showcase PRIVATE reflect)
-endif()
-
 # Tests
 # Listed explicitly rather than file(GLOB ...): a glob runs at configure
 # time, so a new test_xxx.cpp added on disk wouldn't be picked up until
@@ -59,6 +52,37 @@ if (REFLECT_BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
         add_executable(${test_name} ${test_src})
         target_link_libraries(${test_name} PRIVATE reflect)
         add_test(NAME ${test_name} COMMAND ${test_name})
+    endforeach()
+endif()
+
+# Examples
+# Per-feature programs (plus the all-in-one showcase). When tests are
+# enabled, each example is also registered as a ctest entry — so CI not
+# only builds them but runs them and verifies a clean exit. A regression
+# in any example fails CI, same as a unit test.
+set(REFLECT_EXAMPLE_SOURCES
+    examples/showcase.cpp
+    examples/type_name.cpp
+    examples/enum.cpp
+    examples/visit.cpp
+    examples/print.cpp
+    examples/compare.cpp
+    examples/tuple.cpp
+    examples/json.cpp
+    examples/diff.cpp
+    examples/args.cpp
+    examples/format.cpp
+)
+
+option(REFLECT_BUILD_EXAMPLES "Build example programs" ON)
+if (REFLECT_BUILD_EXAMPLES)
+    foreach(ex_src ${REFLECT_EXAMPLE_SOURCES})
+        get_filename_component(ex_name ${ex_src} NAME_WE)
+        add_executable(${ex_name} ${ex_src})
+        target_link_libraries(${ex_name} PRIVATE reflect)
+        if (REFLECT_BUILD_TESTS)
+            add_test(NAME example_${ex_name} COMMAND ${ex_name})
+        endif()
     endforeach()
 endif()
 
