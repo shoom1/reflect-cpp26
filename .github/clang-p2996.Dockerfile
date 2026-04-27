@@ -55,10 +55,17 @@ ENV PATH=/opt/clang-p2996/bin:$PATH
 ENV CC=clang
 ENV CXX=clang++
 
-# Sanity check: clang understands -freflection-latest and finds its own
-# libc++ headers. We rely on auto-discovery rather than hardcoding paths
-# because LLVM_ENABLE_PER_TARGET_RUNTIME_DIR puts headers under
-# include/<triple>/c++/v1, which varies by host.
+# Make libc++.so.1 discoverable to the dynamic loader. With
+# LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON, libc++ installs at
+# /opt/clang-p2996/lib/<triple>/, which is not on the default search
+# path. Without this, every executable linked against libc++ fails at
+# load time with "libc++.so.1: cannot open shared object file".
+RUN echo "/opt/clang-p2996/lib/x86_64-unknown-linux-gnu" \
+        > /etc/ld.so.conf.d/clang-p2996.conf \
+ && ldconfig
+
+# Sanity check: clang understands -freflection-latest, finds its own
+# libc++ headers, and the resulting binary actually loads.
 RUN printf '#include <meta>\nint main(){}\n' > /tmp/t.cpp \
  && clang++ -std=c++26 -stdlib=libc++ -freflection-latest /tmp/t.cpp -o /tmp/t \
  && /tmp/t \
