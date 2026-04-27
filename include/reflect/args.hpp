@@ -128,8 +128,11 @@ namespace args_detail {
 // args_help<T>(program_name) — generate help text from a struct
 // ---------------------------------------------------------------------------
 
+// Marked constexpr so the `template for` over args_members_of(^^T)
+// accepts the consteval-helper-returned std::vector<info> as its range.
+// Other modules (compare, visit, json, …) follow the same pattern.
 template <reflectable T>
-std::string args_help(std::string_view program_name = "program") {
+constexpr std::string args_help(std::string_view program_name = "program") {
     std::ostringstream os;
     os << "Usage: " << program_name << " [OPTIONS]\n\nOptions:\n";
 
@@ -176,7 +179,7 @@ std::string args_help(std::string_view program_name = "program") {
 // ---------------------------------------------------------------------------
 
 template <reflectable T>
-T parse_args(int argc, char const* const* argv) {
+constexpr T parse_args(int argc, char const* const* argv) {
     T result{};
 
     // Build the argument list (skip program name)
@@ -277,7 +280,7 @@ T parse_args(int argc, char const* const* argv) {
 // ---------------------------------------------------------------------------
 
 template <reflectable T>
-T parse_args(std::vector<std::string_view> const& argv) {
+constexpr T parse_args(std::vector<std::string_view> const& argv) {
     std::vector<char const*> ptrs;
     ptrs.push_back("program");
     for (auto& s : argv) ptrs.push_back(s.data());
