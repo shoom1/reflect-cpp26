@@ -19,6 +19,12 @@ int main() {
         std::cout << "  " << name << " = " << value << "\n";
     });
 
+    // Indexed iteration: visitor receives (index, name, value)
+    std::cout << "for_each_field_indexed:\n";
+    reflect::for_each_field_indexed(p, [](std::size_t idx, std::string_view name, auto const& value) {
+        std::cout << "  [" << idx << "] " << name << " = " << value << "\n";
+    });
+
     // Compile-time field metadata
     std::cout << "field_count<Point>() = "
               << reflect::field_count<Point>() << "\n";

@@ -15,8 +15,8 @@
 //   //   y = 4.5
 //
 //   // Visit with index(index, name, value):
-//   reflect::for_each_field_indexed(p, [](auto idx, std::string_view name, auto const& val) {
-//       // idx is a std::integral_constant — usable in constexpr context
+//   reflect::for_each_field_indexed(p, [](std::size_t idx, std::string_view name, auto const& val) {
+//       std::println("[{}] {} = {}", idx, name, val);
 //   });
 //
 //   // Get the number of reflected fields:
@@ -116,36 +116,31 @@ constexpr void for_each_field(T const& obj, F&& visitor) {
 // ---------------------------------------------------------------------------
 // for_each_field_indexed(obj, visitor) — visitor(index, name, value)
 //
-// index is std::integral_constant<std::size_t, I> so it's constexpr-usable.
+// `index` is a runtime std::size_t. (An earlier design passed an
+// std::integral_constant<size_t, I> for compile-time use; that version
+// became immediate-escalating under the current P2996 R10 implementation
+// — splicing `obj.[:members[Is]:]` inside a pack-expansion lambda forced
+// the whole function to be consteval, breaking every runtime caller.
+// The simpler `template for` form below is constexpr-friendly and
+// matches the pattern used by every other module's iteration helper.)
 // ---------------------------------------------------------------------------
-
-namespace detail {
-    template <std::size_t I>
-    using index_c = std::integral_constant<std::size_t, I>;
-}
 
 template <reflectable T, typename F>
 constexpr void for_each_field_indexed(T const& obj, F&& visitor) {
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        constexpr auto members = detail::data_members(^^T);
-        (visitor(
-            detail::index_c<Is>{},
-            std::meta::identifier_of(members[Is]),
-            obj.[:members[Is]:]
-        ), ...);
-    }(std::make_index_sequence<field_count<T>()>{});
+    std::size_t idx = 0;
+    template for (constexpr auto member : detail::data_members(^^T)) {
+        visitor(idx, std::meta::identifier_of(member), obj.[:member:]);
+        ++idx;
+    }
 }
 
 template <reflectable T, typename F>
 constexpr void for_each_field_indexed(T& obj, F&& visitor) {
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        constexpr auto members = detail::data_members(^^T);
-        (visitor(
-            detail::index_c<Is>{},
-            std::meta::identifier_of(members[Is]),
-            obj.[:members[Is]:]
-        ), ...);
-    }(std::make_index_sequence<field_count<T>()>{});
+    std::size_t idx = 0;
+    template for (constexpr auto member : detail::data_members(^^T)) {
+        visitor(idx, std::meta::identifier_of(member), obj.[:member:]);
+        ++idx;
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -426,7 +426,7 @@ Or with CMake FetchContent:
 ```cmake
 include(FetchContent)
 FetchContent_Declare(reflect
-    GIT_REPOSITORY https://github.com/YOUR_USERNAME/reflect.git
+    GIT_REPOSITORY https://github.com/shoom1/reflect-cpp26.git
     GIT_TAG main
 )
 FetchContent_MakeAvailable(reflect)
