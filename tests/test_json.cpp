@@ -376,6 +376,66 @@ void test_error_missing_brace() {
     std::cout << "  error missing brace: PASS\n";
 }
 
+void test_error_trailing_garbage() {
+    bool caught = false;
+    try {
+        reflect::from_json<Point>(R"({"x":1,"y":2} trailing)");
+    } catch (reflect::json_parse_error const&) {
+        caught = true;
+    }
+    assert(caught);
+
+    caught = false;
+    try {
+        reflect::from_json<bool>("true false");
+    } catch (reflect::json_parse_error const&) {
+        caught = true;
+    }
+    assert(caught);
+
+    std::cout << "  error trailing garbage: PASS\n";
+}
+
+void test_error_unescaped_control_in_string() {
+    struct S { std::string text; };
+    bool caught = false;
+    try {
+        reflect::from_json<S>("{\"text\":\"hello\nworld\"}");
+    } catch (reflect::json_parse_error const&) {
+        caught = true;
+    }
+    assert(caught);
+    std::cout << "  error unescaped control in string: PASS\n";
+}
+
+void test_error_invalid_numbers() {
+    bool caught = false;
+    try {
+        reflect::from_json<int>("01");
+    } catch (reflect::json_parse_error const&) {
+        caught = true;
+    }
+    assert(caught);
+
+    caught = false;
+    try {
+        reflect::from_json<double>("1.");
+    } catch (reflect::json_parse_error const&) {
+        caught = true;
+    }
+    assert(caught);
+
+    caught = false;
+    try {
+        reflect::from_json<double>("1e");
+    } catch (reflect::json_parse_error const&) {
+        caught = true;
+    }
+    assert(caught);
+
+    std::cout << "  error invalid numbers: PASS\n";
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
@@ -421,6 +481,9 @@ int main() {
     std::cout << "\n=== test_json — error handling ===\n";
     test_error_invalid_json();
     test_error_missing_brace();
+    test_error_trailing_garbage();
+    test_error_unescaped_control_in_string();
+    test_error_invalid_numbers();
 
     std::cout << "\nAll JSON tests passed!\n";
     return 0;

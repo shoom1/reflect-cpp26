@@ -329,6 +329,10 @@ namespace json_detail {
 
         // ---- low-level tokenization ----
 
+        static constexpr bool is_digit(char c) {
+            return c >= '0' && c <= '9';
+        }
+
         void skip_ws() {
             while (pos < src.size() && (src[pos] == ' ' || src[pos] == '\n' ||
                                         src[pos] == '\r' || src[pos] == '\t'))
@@ -448,6 +452,8 @@ namespace json_detail {
                     }
                     ++pos;
                 } else {
+                    if (static_cast<unsigned char>(src[pos]) < 0x20)
+                        throw json_parse_error("unescaped control character in string");
                     result += src[pos];
                     ++pos;
                 }
@@ -467,21 +473,44 @@ namespace json_detail {
         std::string_view scan_number() {
             skip_ws();
             auto start = pos;
+
             if (pos < src.size() && src[pos] == '-') ++pos;
-            while (pos < src.size() && src[pos] >= '0' && src[pos] <= '9') ++pos;
+
+            if (pos >= src.size())
+                throw json_parse_error("expected number");
+
+            if (src[pos] == '0') {
+                ++pos;
+                if (pos < src.size() && is_digit(src[pos]))
+                    throw json_parse_error("invalid number: leading zero");
+            } else if (src[pos] >= '1' && src[pos] <= '9') {
+                do {
+                    ++pos;
+                } while (pos < src.size() && is_digit(src[pos]));
+            } else {
+                throw json_parse_error("expected number");
+            }
+
             if (pos < src.size() && src[pos] == '.') {
                 ++pos;
-                while (pos < src.size() && src[pos] >= '0' && src[pos] <= '9') ++pos;
+                if (pos >= src.size() || !is_digit(src[pos]))
+                    throw json_parse_error("invalid number: expected digit after decimal point");
+                do {
+                    ++pos;
+                } while (pos < src.size() && is_digit(src[pos]));
             }
+
             if (pos < src.size() && (src[pos] == 'e' || src[pos] == 'E')) {
                 ++pos;
                 if (pos < src.size() && (src[pos] == '+' || src[pos] == '-')) ++pos;
-                while (pos < src.size() && src[pos] >= '0' && src[pos] <= '9') ++pos;
+                if (pos >= src.size() || !is_digit(src[pos]))
+                    throw json_parse_error("invalid number: expected digit in exponent");
+                do {
+                    ++pos;
+                } while (pos < src.size() && is_digit(src[pos]));
             }
-            auto sv = src.substr(start, pos - start);
-            if (sv.empty() || sv == "-")
-                throw json_parse_error("expected number");
-            return sv;
+
+            return src.substr(start, pos - start);
         }
 
         template <typename T>
@@ -664,6 +693,10 @@ template <typename T>
 T from_json(std::string_view json_str) {
     json_detail::parser p{json_str};
     auto result = p.parse_value<T>();
+    p.skip_ws();
+    if (p.pos != p.src.size()) {
+        throw json_parse_error("unexpected trailing characters after JSON value");
+    }
     return result;
 }
 

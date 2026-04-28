@@ -4,8 +4,8 @@
 //
 // Usage:
 //   struct Args {
-//       std::string input;                  // --input
-//       int verbose = 0;                    // --verbose (default: 0)
+//       std::string input;                  // --input <STRING> (required)
+//       int verbose = 0;                    // --verbose <INT> (required)
 //       bool debug = false;                 // --debug (flag, no value needed)
 //       std::optional<std::string> output;  // --output (optional)
 //       std::vector<std::string> files;     // --files a b c (multi-value)
@@ -95,6 +95,13 @@ namespace args_detail {
     T parse_single(std::string_view str, std::string_view flag_name) {
         if constexpr (std::same_as<T, std::string>) {
             return std::string(str);
+        } else if constexpr (std::same_as<T, bool>) {
+            if (str == "true" || str == "1" || str == "yes" || str == "on")
+                return true;
+            if (str == "false" || str == "0" || str == "no" || str == "off")
+                return false;
+            throw args_error("invalid boolean for " + std::string(flag_name) +
+                             ": '" + std::string(str) + "'");
         } else if constexpr (std::is_integral_v<T>) {
             T val{};
             auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), val);
@@ -123,6 +130,11 @@ namespace args_detail {
         else return "VALUE";
     }
 
+    inline void append_help_padding(std::ostringstream& os, std::size_t used, std::size_t width = 24) {
+        if (used < width)
+            os << std::string(width - used, ' ');
+    }
+
 } // namespace args_detail
 
 // ---------------------------------------------------------------------------
@@ -145,27 +157,25 @@ constexpr std::string args_help(std::string_view program_name = "program") {
         os << "  " << flag;
 
         if constexpr (args_detail::is_bool<MType>) {
-            os << std::string(24 - flag.size() - 2, ' ');
+            args_detail::append_help_padding(os, 2 + flag.size());
             os << "(flag)";
         } else if constexpr (reflect::is_optional<MType>) {
             using Inner = typename MType::value_type;
             auto label = args_detail::type_label<Inner>();
             os << " <" << label << ">";
-            auto pad = 24 - flag.size() - 3 - label.size() - 2;
-            if (pad > 0 && pad < 30) os << std::string(pad, ' ');
+            args_detail::append_help_padding(os, 2 + flag.size() + 3 + label.size());
             os << "(optional)";
         } else if constexpr (args_detail::is_vector<MType>) {
             using Inner = typename MType::value_type;
             auto label = args_detail::type_label<Inner>();
             os << " <" << label << ">...";
-            auto pad = 24 - flag.size() - 3 - label.size() - 5;
-            if (pad > 0 && pad < 30) os << std::string(pad, ' ');
+            args_detail::append_help_padding(os, 2 + flag.size() + 6 + label.size());
             os << "(multi-value)";
         } else {
             auto label = args_detail::type_label<MType>();
             os << " <" << label << ">";
-            auto pad = 24 - flag.size() - 3 - label.size() - 1;
-            if (pad > 0 && pad < 30) os << std::string(pad, ' ');
+            args_detail::append_help_padding(os, 2 + flag.size() + 3 + label.size());
+            os << "(required)";
         }
 
         os << "\n";
@@ -179,20 +189,17 @@ constexpr std::string args_help(std::string_view program_name = "program") {
 // parse_args<T>(argc, argv) — parse command-line arguments into a struct
 // ---------------------------------------------------------------------------
 
-template <reflectable T>
-constexpr T parse_args(int argc, char const* const* argv) {
-    T result{};
+namespace args_detail {
 
-    // Build the argument list (skip program name)
-    std::vector<std::string_view> args;
-    for (int i = 1; i < argc; ++i)
-        args.emplace_back(argv[i]);
+template <reflectable T>
+constexpr T parse_args_views(std::vector<std::string_view> const& args,
+                             std::string_view program_name = "program") {
+    T result{};
 
     // Check for --help
     for (auto const& arg : args) {
         if (arg == "--help" || arg == "-h") {
-            std::string prog = (argc > 0) ? argv[0] : "program";
-            throw args_help_requested(args_help<T>(prog));
+            throw args_help_requested(args_help<T>(program_name));
         }
     }
 
@@ -276,16 +283,28 @@ constexpr T parse_args(int argc, char const* const* argv) {
     return result;
 }
 
+} // namespace args_detail
+
+template <reflectable T>
+constexpr T parse_args(int argc, char const* const* argv) {
+    std::vector<std::string_view> args;
+    for (int i = 1; i < argc; ++i)
+        args.emplace_back(argv[i]);
+
+    std::string_view program_name = "program";
+    if (argc > 0 && argv[0] != nullptr)
+        program_name = argv[0];
+
+    return args_detail::parse_args_views<T>(args, program_name);
+}
+
 // ---------------------------------------------------------------------------
 // Overload taking std::vector<std::string_view> for testing
 // ---------------------------------------------------------------------------
 
 template <reflectable T>
 constexpr T parse_args(std::vector<std::string_view> const& argv) {
-    std::vector<char const*> ptrs;
-    ptrs.push_back("program");
-    for (auto& s : argv) ptrs.push_back(s.data());
-    return parse_args<T>(static_cast<int>(ptrs.size()), ptrs.data());
+    return args_detail::parse_args_views<T>(argv);
 }
 
 } // namespace reflect

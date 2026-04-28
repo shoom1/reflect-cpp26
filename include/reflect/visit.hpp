@@ -161,6 +161,23 @@ consteval void for_each_field_meta(F&& visitor) {
 // field_value<Name>(obj) — access field by compile-time string
 // ---------------------------------------------------------------------------
 
+template <std::size_t N>
+struct fixed_string {
+    char value[N]{};
+
+    constexpr fixed_string(char const (&str)[N]) {
+        for (std::size_t i = 0; i < N; ++i)
+            value[i] = str[i];
+    }
+
+    constexpr std::string_view view() const {
+        return {value, N - 1};
+    }
+};
+
+template <std::size_t N>
+fixed_string(char const (&)[N]) -> fixed_string<N>;
+
 namespace detail {
     template <reflectable T>
     consteval std::meta::info find_field(std::string_view name) {
@@ -175,16 +192,16 @@ namespace detail {
 }
 
 // Usage: reflect::field_value<"x">(point) → point.x
-template <auto Name, reflectable T>
+template <fixed_string Name, reflectable T>
 constexpr auto& field_value(T& obj) {
-    constexpr auto member = detail::find_field<T>(Name);
+    constexpr auto member = detail::find_field<T>(Name.view());
     static_assert(member != std::meta::info{}, "field not found");
     return obj.[:member:];
 }
 
-template <auto Name, reflectable T>
+template <fixed_string Name, reflectable T>
 constexpr auto const& field_value(T const& obj) {
-    constexpr auto member = detail::find_field<T>(Name);
+    constexpr auto member = detail::find_field<T>(Name.view());
     static_assert(member != std::meta::info{}, "field not found");
     return obj.[:member:];
 }

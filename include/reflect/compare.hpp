@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <functional>
 #include <ranges>
+#include <utility>
 
 namespace reflect {
 
@@ -60,10 +61,34 @@ namespace detail {
     template <typename T>
     constexpr bool fields_equal(T const& a, T const& b);
 
+    // Forward declaration: comparison-category deduction dispatch
+    template <typename T>
+    consteval std::meta::info compare_category_info();
+
+    template <typename T>
+    using compare_category_t = typename[:compare_category_info<T>():];
+
+    template <typename T>
+    concept unordered_associative_range = reflect::is_range<T> && requires(T const& t) {
+        typename T::hasher;
+        typename T::key_equal;
+        { t.bucket_count() } -> std::convertible_to<std::size_t>;
+    };
+
+    template <typename T>
+    concept pair_like = requires(T const& t) {
+        typename T::first_type;
+        typename T::second_type;
+        t.first;
+        t.second;
+    };
+
     // ---- compute_hash dispatch ----
     template <typename T>
     std::size_t compute_hash(T const& value) {
-        if constexpr (reflectable<T>) {
+        if constexpr (pair_like<T>) {
+            return hash_combine(compute_hash(value.first), compute_hash(value.second));
+        } else if constexpr (reflectable<T>) {
             std::size_t seed = hash_seed;
             template for (constexpr auto member : compare_members_of(^^T)) {
                 seed = hash_combine(seed, compute_hash(value.[:member:]));
@@ -74,6 +99,18 @@ namespace detail {
                 static_cast<std::underlying_type_t<T>>(value));
         } else if constexpr (reflect::is_optional<T>) {
             return value.has_value() ? compute_hash(*value) : 0;
+        } else if constexpr (unordered_associative_range<T>) {
+            std::size_t sum = 0;
+            std::size_t mixed_xor = 0;
+            std::size_t count = 0;
+            for (auto const& elem : value) {
+                auto h = compute_hash(elem);
+                sum += h;
+                mixed_xor ^= hash_combine(h, h >> 16);
+                ++count;
+            }
+            return hash_combine(hash_combine(hash_seed, count),
+                                hash_combine(sum, mixed_xor));
         } else if constexpr (reflect::is_range<T>) {
             std::size_t seed = hash_seed;
             for (auto const& elem : value)
@@ -137,9 +174,54 @@ constexpr bool not_equal(T const& a, T const& b) {
 
 namespace detail {
 
+    template <typename Category>
+    constexpr Category comparison_equal() {
+        if constexpr (std::same_as<Category, std::strong_ordering>) {
+            return Category::equal;
+        } else {
+            return Category::equivalent;
+        }
+    }
+
+    template <typename T>
+    consteval std::meta::info value_compare_category_info() {
+        if constexpr (std::three_way_comparable<T>) {
+            return ^^decltype(std::declval<T const&>() <=> std::declval<T const&>());
+        } else if constexpr (reflectable<T>) {
+            return ^^compare_category_t<T>;
+        } else if constexpr (requires(T const& a, T const& b) { a < b; a == b; }) {
+            return ^^std::strong_ordering;
+        } else {
+            static_assert(sizeof(T) == 0,
+                "compare: type has no <=>, no <, and is not reflectable.");
+        }
+    }
+
+    template <std::meta::info Member>
+    using member_compare_category_t =
+        typename[:value_compare_category_info<typename[:std::meta::type_of(Member):]>():];
+
+    template <typename T>
+    consteval std::meta::info compare_category_info() {
+        if constexpr (reflectable<T>) {
+            constexpr auto member_count = compare_members_of(^^T).size();
+            if constexpr (member_count == 0) {
+                return ^^std::strong_ordering;
+            } else {
+                return []<std::size_t... Is>(std::index_sequence<Is...>) {
+                    constexpr auto members = compare_members_of(^^T);
+                    return ^^std::common_comparison_category_t<
+                        member_compare_category_t<members[Is]>...>;
+                }(std::make_index_sequence<member_count>{});
+            }
+        } else {
+            return value_compare_category_info<T>();
+        }
+    }
+
     // Three-way compare with the same dispatch table as fields_equal.
     template <typename T>
-    constexpr auto fields_compare(T const& a, T const& b) {
+    constexpr compare_category_t<T> fields_compare(T const& a, T const& b) {
         if constexpr (std::three_way_comparable<T>) {
             return a <=> b;
         } else if constexpr (reflectable<T>) {
@@ -147,17 +229,16 @@ namespace detail {
                 auto cmp = fields_compare(a.[:member:], b.[:member:]);
                 if (cmp != 0) return cmp;
             }
-            return std::strong_ordering::equal;
+            return comparison_equal<compare_category_t<T>>();
         } else {
             // Fallback: synthesize from < and ==
             if constexpr (requires { a < b; a == b; }) {
-                if (a == b) return std::strong_ordering::equal;
+                if (a == b) return comparison_equal<compare_category_t<T>>();
                 return a < b ? std::strong_ordering::less
                              : std::strong_ordering::greater;
             } else {
                 static_assert(sizeof(T) == 0,
                     "compare: type has no <=>, no <, and is not reflectable.");
-                return std::strong_ordering::equal;
             }
         }
     }
@@ -165,12 +246,12 @@ namespace detail {
 } // namespace detail
 
 template <reflectable T>
-constexpr auto compare(T const& a, T const& b) {
+constexpr detail::compare_category_t<T> compare(T const& a, T const& b) {
     template for (constexpr auto member : detail::compare_members_of(^^T)) {
         auto cmp = detail::fields_compare(a.[:member:], b.[:member:]);
         if (cmp != 0) return cmp;
     }
-    return std::strong_ordering::equal;
+    return detail::comparison_equal<detail::compare_category_t<T>>();
 }
 
 // ---------------------------------------------------------------------------

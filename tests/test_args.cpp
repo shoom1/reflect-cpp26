@@ -33,6 +33,10 @@ struct NumericArgs {
     bool dry_run = false;
 };
 
+struct OptionalBoolArgs {
+    std::optional<bool> enabled;
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -104,6 +108,14 @@ void test_numeric_args() {
     assert(args.rate == 2.5);
     assert(args.dry_run == true);
     std::cout << "  numeric args: PASS\n";
+}
+
+void test_optional_bool_value() {
+    char const* argv[] = {"prog", "--enabled", "false"};
+    auto args = reflect::parse_args<OptionalBoolArgs>(3, argv);
+    assert(args.enabled.has_value());
+    assert(*args.enabled == false);
+    std::cout << "  optional bool value: PASS\n";
 }
 
 void test_underscore_to_dash() {
@@ -218,6 +230,24 @@ void test_vector_overload() {
     std::cout << "  vector overload: PASS\n";
 }
 
+void test_vector_overload_respects_string_view_length() {
+    std::string flag_input = "xx--inputyy";
+    std::string value_input = "xxtrimmed.txtyy";
+    std::string flag_count = "xx--countyy";
+    std::string value_count = "xx42yy";
+
+    auto args = reflect::parse_args<SimpleArgs>(std::vector<std::string_view>{
+        std::string_view(flag_input).substr(2, 7),
+        std::string_view(value_input).substr(2, 11),
+        std::string_view(flag_count).substr(2, 7),
+        std::string_view(value_count).substr(2, 2),
+    });
+
+    assert(args.input == "trimmed.txt");
+    assert(args.count == 42);
+    std::cout << "  vector overload string_view length: PASS\n";
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
@@ -232,6 +262,7 @@ int main() {
     test_vector_args();
     test_vector_stops_at_flag();
     test_numeric_args();
+    test_optional_bool_value();
     test_underscore_to_dash();
     test_combined();
     test_unknown_arg_throws();
@@ -241,6 +272,7 @@ int main() {
     test_missing_required_throws();
     test_help_throws();
     test_vector_overload();
+    test_vector_overload_respects_string_view_length();
     std::cout << "All args tests passed!\n\n";
     return 0;
 }

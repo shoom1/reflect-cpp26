@@ -315,8 +315,8 @@ reflect::apply(v, [](float x, float y, float z) { return x + y + z; }); // → 6
 #include <reflect/args.hpp>
 
 struct Args {
-    std::string input;                   // --input <STRING>
-    int verbose = 0;                     // --verbose <INT>
+    std::string input;                   // --input <STRING> (required)
+    int verbose = 0;                     // --verbose <INT> (required)
     bool debug = false;                  // --debug (flag)
     std::optional<std::string> output;   // --output <STRING> (optional)
     std::vector<std::string> files;      // --files a.txt b.txt (multi-value)
@@ -337,8 +337,8 @@ reflect::args_help<Args>("myapp");
 // Usage: myapp [OPTIONS]
 //
 // Options:
-//   --input <STRING>
-//   --verbose <INT>
+//   --input <STRING>        (required)
+//   --verbose <INT>         (required)
 //   --debug                  (flag)
 //   --output <STRING>        (optional)
 //   --files <STRING>...      (multi-value)

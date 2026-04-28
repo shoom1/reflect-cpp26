@@ -10,11 +10,16 @@
 #include <reflect/diff.hpp>
 
 #include <cassert>
+#include <cmath>
+#include <compare>
+#include <concepts>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -32,6 +37,8 @@ struct Config { std::string host; int port; bool tls; };
 // Nested struct without operator== — tests reflection-based comparison in diff
 struct Inner { int a; int b; };
 struct Outer { Inner inner; std::string tag; };
+struct WithFloat { double x; int y; };
+struct WithUnordered { std::unordered_map<std::string, int> values; };
 
 // =========================================================================
 // VISIT TESTS
@@ -92,6 +99,18 @@ void test_has_field() {
     static_assert(!reflect::has_field<Point>(""));
 
     std::cout << "  has_field: PASS\n";
+}
+
+void test_field_value() {
+    Point p{3, 7};
+    assert(reflect::field_value<"x">(p) == 3);
+    reflect::field_value<"y">(p) = 11;
+    assert(p.y == 11);
+
+    Point const cp{5, 9};
+    assert(reflect::field_value<"x">(cp) == 5);
+
+    std::cout << "  field_value: PASS\n";
 }
 
 // =========================================================================
@@ -188,6 +207,20 @@ void test_compare() {
     std::cout << "  compare: PASS\n";
 }
 
+void test_compare_partial_ordering() {
+    WithFloat a{1.0, 2};
+    WithFloat b{2.0, 2};
+    auto cmp = reflect::compare(a, b);
+    static_assert(std::same_as<decltype(cmp), std::partial_ordering>);
+    assert(cmp < 0);
+
+    auto nan = std::numeric_limits<double>::quiet_NaN();
+    auto unordered = reflect::compare(WithFloat{nan, 1}, WithFloat{nan, 1});
+    assert(unordered == std::partial_ordering::unordered);
+
+    std::cout << "  compare partial ordering: PASS\n";
+}
+
 void test_hash() {
     Point a{1, 2}, b{1, 2}, c{3, 4};
 
@@ -202,6 +235,16 @@ void test_hash() {
     assert(s.size() == 2);
 
     std::cout << "  hash: PASS\n";
+}
+
+void test_hash_unordered_map_field() {
+    WithUnordered a{{{"one", 1}, {"two", 2}, {"three", 3}}};
+    WithUnordered b{{{"three", 3}, {"one", 1}, {"two", 2}}};
+
+    assert(reflect::equal(a, b));
+    assert(reflect::hash_value(a) == reflect::hash_value(b));
+
+    std::cout << "  hash unordered map field: PASS\n";
 }
 
 void test_first_diff_index() {
@@ -405,6 +448,7 @@ int main() {
     test_for_each_field_const();
     test_for_each_field_mutate();
     test_has_field();
+    test_field_value();
 
     std::cout << "\n=== test_struct — print ===\n";
     test_print_simple();
@@ -417,7 +461,9 @@ int main() {
     std::cout << "\n=== test_struct — compare ===\n";
     test_equal();
     test_compare();
+    test_compare_partial_ordering();
     test_hash();
+    test_hash_unordered_map_field();
     test_first_diff_index();
     test_less_greater();
 
