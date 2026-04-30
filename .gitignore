@@ -44,4 +44,7 @@ Thumbs.db
 # internal
 docs/
 
+.claude/
+CLAUDE.md
+
 
