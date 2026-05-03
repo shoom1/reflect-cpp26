@@ -1,0 +1,51 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Native build (host compiler)",
+      "description": "Use whatever C++26-capable compiler is on PATH (GCC 16+ trunk, etc.)",
+      "binaryDir": "${sourceDir}/build",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "REFLECT_BUILD_TESTS": "ON",
+        "REFLECT_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "docker",
+      "displayName": "Docker build (Bloomberg clang-p2996)",
+      "description": "Build inside the pinned container; binary dir is separate to avoid clashing with host artifacts",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-docker",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "docker-release",
+      "inherits": "docker",
+      "displayName": "Docker release build",
+      "binaryDir": "${sourceDir}/build-docker-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "REFLECT_BUILD_BENCHMARKS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "default",         "configurePreset": "default" },
+    { "name": "docker",          "configurePreset": "docker" },
+    { "name": "docker-release",  "configurePreset": "docker-release" }
+  ],
+  "testPresets": [
+    {
+      "name": "docker",
+      "configurePreset": "docker",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+    }
+  ]
+}

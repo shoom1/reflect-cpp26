@@ -27,18 +27,18 @@ auto t    = reflect::from_json<Trade>(json); // just works
 
 ## What's inside
 
-| Header | What it does | Replaces |
-|--------|-------------|----------|
+| Header | What it does | Inspired by |
+|--------|-------------|-------------|
 | `reflect/enum.hpp` | Enum ↔ string, names, values, flags | magic_enum |
-| `reflect/print.hpp` | Pretty-print any struct | Rust's `derive(Debug)` |
-| `reflect/compare.hpp` | Automatic ==, <=>, std::hash | manual operator overloads |
+| `reflect/print.hpp` | Pretty-print any struct | Rust `derive(Debug)` |
+| `reflect/compare.hpp` | Automatic ==, <=>, std::hash | Rust `derive(PartialEq, Hash)` |
 | `reflect/tuple.hpp` | Struct ↔ tuple conversion | Boost.PFR |
-| `reflect/json.hpp` | JSON serialize/deserialize | nlohmann/json macros |
-| `reflect/visit.hpp` | `for_each_field(obj, visitor)` | hand-written visitors |
-| `reflect/args.hpp` | CLI parsing from a struct | Rust's clap derive |
-| `reflect/diff.hpp` | Struct diff / change detection | manual field comparison |
-| `reflect/format.hpp` | `std::format` integration | manual formatter specializations |
-| `reflect/type_name.hpp` | Clean demangled type names | `typeid(T).name()` hacks |
+| `reflect/json.hpp` | JSON serialize/deserialize | nlohmann/json, glaze |
+| `reflect/visit.hpp` | `for_each_field(obj, visitor)` | Boost.PFR |
+| `reflect/args.hpp` | CLI parsing from a struct | Rust's clap |
+| `reflect/diff.hpp` | Struct diff / change detection | — |
+| `reflect/format.hpp` | `std::format` integration | — |
+| `reflect/type_name.hpp` | Clean demangled type names | Boost.TypeIndex |
 
 Every header is independent. Include only what you need.
 
@@ -87,124 +87,27 @@ g++ -std=c++26 -Iinclude main.cpp
 
 ---
 
-## Before / After
+## Try it locally (Docker)
 
-### Enum to string
+Don't have a P2996-capable compiler installed? The repo ships a pinned
+toolchain. Requires only Docker:
 
-<table>
-<tr><th>Before (magic_enum)</th><th>After (reflect)</th></tr>
-<tr><td>
-
-```cpp
-#include <magic_enum.hpp>
-// Relies on __PRETTY_FUNCTION__
-// compiler-specific hack
-// Breaks on enums with values > 128
-// Slow compile times from brute-force
-//   template instantiation
-
-auto name = magic_enum::enum_name(color);
+```bash
+git clone https://github.com/shoom1/reflect-cpp26.git
+cd reflect-cpp26
+./scripts/docker-build.sh        # first run: builds toolchain image (~30–60 min) + project
+./scripts/docker-test.sh         # runs all tests
+./scripts/docker-run.sh reflect_example_showcase
 ```
 
-</td><td>
+The `Dockerfile` builds Bloomberg's clang-p2996 fork from source pinned
+to a specific commit. Trust chain: Docker Desktop → ubuntu:24.04 →
+bloomberg/clang-p2996. No third-party prebuilt images.
 
-```cpp
-#include <reflect/enum.hpp>
-// Standard C++26
-// Works on ALL enums
-// No range limits
-// Zero-cost compile-time expansion
+The first build takes 30–60 minutes (LLVM compile). Subsequent runs are
+seconds — Docker caches the image, and `cmake --build` is incremental.
 
-auto name = reflect::enum_to_string(color);
-```
-
-</td></tr>
-</table>
-
-### JSON serialization
-
-<table>
-<tr><th>Before (nlohmann/json)</th><th>After (reflect)</th></tr>
-<tr><td>
-
-```cpp
-struct Trade {
-    int id;
-    std::string symbol;
-    double price;
-    std::vector<std::string> tags;
-};
-// Manual field registration for EVERY struct:
-NLOHMANN_DEFINE_TYPE_INTRUSIVE(
-    Trade, id, symbol, price, tags
-)
-// Add a field? Update the macro too.
-// Rename a field? Update the macro too.
-// Forget a field? Silent bug.
-```
-
-</td><td>
-
-```cpp
-struct Trade {
-    int id;
-    std::string symbol;
-    double price;
-    std::vector<std::string> tags;
-};
-// Nothing. That's it. It just works.
-
-auto json = reflect::to_json(trade);
-auto t = reflect::from_json<Trade>(json);
-// Add a field? Automatically included.
-// Rename a field? Automatically updated.
-```
-
-</td></tr>
-</table>
-
-### Struct hashing
-
-<table>
-<tr><th>Before</th><th>After (reflect)</th></tr>
-<tr><td>
-
-```cpp
-struct Point { int x; int y; };
-
-// You write this. For every. Single. Struct.
-struct PointHash {
-    size_t operator()(Point const& p) const {
-        size_t h = std::hash<int>{}(p.x);
-        h ^= std::hash<int>{}(p.y) + 0x9e3779b9
-             + (h << 6) + (h >> 2);
-        return h;
-    }
-};
-struct PointEq {
-    bool operator()(Point const& a,
-                    Point const& b) const {
-        return a.x == b.x && a.y == b.y;
-    }
-};
-std::unordered_set<Point, PointHash, PointEq> s;
-```
-
-</td><td>
-
-```cpp
-struct Point { int x; int y; };
-
-// Done.
-std::unordered_set<
-    Point,
-    reflect::hasher<Point>,
-    reflect::equal_to<Point>
-> s;
-```
-
-</td></tr>
-</table>
+CI mirrors this setup — see `.github/workflows/`.
 
 ---
 
@@ -398,13 +301,17 @@ reflect::format(Point{3, 7});       // → "Point{.x=3, .y=7}"
 
 | Compiler | Version | Flag | Status |
 |----------|---------|------|--------|
-| Bloomberg Clang fork | latest | `-freflection-latest` | ✅ Recommended |
-| GCC | 16+ (trunk) | `-std=c++26` | ✅ Works |
-| EDG | Compiler Explorer | — | ✅ Works |
+| Bloomberg Clang fork | `p2996` branch | `-freflection-latest` | ✅ Tested |
+| GCC | 16+ (trunk) | `-std=c++26` | Untested |
+| EDG (Compiler Explorer) | — | — | Untested |
 | Clang mainline | — | — | ❌ Not yet |
 | MSVC | — | — | ❌ Not yet |
 
-This library requires C++26 with P2996 reflection support. Try it on [Compiler Explorer](https://godbolt.org/) with "x86-64 clang (experimental P2996)".
+This library requires C++26 with P2996 reflection support. Try it without
+installing anything: open [Compiler Explorer](https://godbolt.org/), pick
+**"x86-64 clang (experimental P2996)"** from the compiler dropdown, and
+paste in any of the snippets above. Add `-std=c++26 -freflection-latest`
+to the compiler flags box.
 
 ## Install
 

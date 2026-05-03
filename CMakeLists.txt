@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(reflect
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "C++26 reflection utilities — header-only, zero dependencies"
     LANGUAGES CXX
 )
@@ -79,6 +79,7 @@ set(REFLECT_EXAMPLE_SOURCES
     examples/diff.cpp
     examples/args.cpp
     examples/format.cpp
+    examples/generic.cpp
 )
 
 option(REFLECT_BUILD_EXAMPLES "Build example programs" ${REFLECT_DEFAULT_BUILD_AUX})

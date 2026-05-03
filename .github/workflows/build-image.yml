@@ -57,8 +57,10 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: .github/clang-p2996.Dockerfile
+          file: Dockerfile
           push: true
+          # CI runners have ~7 GB RAM and 2 CPUs — default COMPILE_JOBS=2,
+          # LINK_JOBS=1 fits comfortably. Override here if runners change.
           build-args: |
             ${{ inputs.p2996_ref != '' && format('P2996_REF={0}', inputs.p2996_ref) || '' }}
           tags: |
