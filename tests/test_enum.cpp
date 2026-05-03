@@ -155,6 +155,9 @@ void test_flags() {
     // Invalid flag
     assert(reflect::flags_from_string<Perm>("read|bogus") == std::nullopt);
 
+    // Empty separator: would otherwise loop forever. Must reject up front.
+    assert(reflect::flags_from_string<Perm>("read|write", "") == std::nullopt);
+
     std::cout << "  flags: PASS\n";
 }
 

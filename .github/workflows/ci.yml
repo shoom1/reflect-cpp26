@@ -15,22 +15,25 @@ permissions:
   packages: read
 
 jobs:
-  # Cheap host-level pre-flight: ensure the image tag pulled by later
-  # jobs matches the upstream P2996 commit pinned in Dockerfile. Catches
-  # the human error of bumping one without the other.
-  verify-image-pin:
-    name: Verify CI image tag matches Dockerfile pin
+  # Cheap host-level pre-flight checks. Cumulatively run in seconds and
+  # gate the heavier container jobs so a misconfiguration fails fast on
+  # the host instead of after a slow image pull.
+  preflight:
+    name: Pre-flight checks
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v5
-      - run: ./scripts/verify-image-pin.sh
+      - name: Verify CI image tag matches Dockerfile pin
+        run: ./scripts/verify-image-pin.sh
+      - name: Verify all test files are listed in CMakeLists.txt
+        run: ./scripts/verify-tests-listed.sh
 
   build-and-test:
     name: Build & test (Bloomberg Clang P2996 fork)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: verify-image-pin
+    needs: preflight
 
     # Pull the prebuilt P2996 image from GHCR. The :p2996-<short SHA>
     # tag is immutable and must match the ARG P2996_REF pin in
@@ -69,7 +72,7 @@ jobs:
     name: Install + consumer smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: verify-image-pin
+    needs: preflight
 
     container:
       image: ghcr.io/${{ github.repository_owner }}/clang-p2996:p2996-9ffb96e3ce36

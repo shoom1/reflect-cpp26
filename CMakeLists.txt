@@ -44,9 +44,9 @@ endif()
 # Listed explicitly rather than file(GLOB ...): a glob runs at configure
 # time, so a new test_xxx.cpp added on disk wouldn't be picked up until
 # CMake re-configures. With an explicit list, adding a test is a 20-second
-# tax for guaranteed correctness — a missing entry here surfaces as a
-# linker/test-discovery failure on the next build, not a silently-skipped
-# test.
+# tax for guaranteed determinism. The downside — a forgotten entry would
+# silently skip the test rather than failing the build — is caught by
+# scripts/verify-tests-listed.sh, run as a CI pre-flight step.
 set(REFLECT_TEST_SOURCES
     tests/test_args.cpp
     tests/test_critical_issues.cpp

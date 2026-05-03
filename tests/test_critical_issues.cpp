@@ -1,9 +1,8 @@
-// tests/test_critical_issues.cpp — regression test for the issues
-// described in docs/notes/code-review-2026-04.md. Once the fixes land,
-// every section in this file should succeed; if any one regresses, the
-// section reports the observed wrong value alongside the expected one.
-//
-// Built and run via ctest (registered by CMakeLists.txt's tests glob).
+// tests/test_critical_issues.cpp — regression suite for past critical
+// bugs: parsing edge cases, comparison/hash divergence, depth limits,
+// NaN serialization, etc. Each section asserts the current behavior;
+// if a fix regresses, the section prints the observed wrong value
+// alongside the expected one.
 
 #include <reflect/reflect.hpp>
 

@@ -243,6 +243,12 @@ template <enumeration E>
 constexpr std::optional<E> flags_from_string(
     std::string_view str, std::string_view separator = "|")
 {
+    // An empty separator would make str.find(separator) return 0 on
+    // every iteration, which combined with remove_prefix(0) would
+    // never advance — infinite loop. Reject it explicitly.
+    if (separator.empty())
+        return std::nullopt;
+
     using U = std::underlying_type_t<E>;
     U combined = 0;
 
