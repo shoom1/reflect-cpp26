@@ -17,16 +17,21 @@ target_include_directories(reflect INTERFACE
 # configure error ("cxx_std_26 is not known to CXX compiler").
 target_compile_options(reflect INTERFACE -std=c++26)
 
-# Detect compiler and add reflection flags
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # Bloomberg Clang fork
-    target_compile_options(reflect INTERFACE -freflection-latest)
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    # GCC 16+ — reflection is enabled automatically with -std=c++26
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.0")
-        message(WARNING "GCC < 16 does not support C++26 reflection. "
-                        "Build from GCC trunk or use Bloomberg Clang fork.")
-    endif()
+# Compiler-specific reflection flag. Wrapped in a generator expression
+# so the decision is made at the *consumer's* build time, not when this
+# package is configured/installed. Without this, installing after
+# configuring with Clang would leak -freflection-latest into a
+# downstream GCC consumer's build via the exported INTERFACE.
+target_compile_options(reflect INTERFACE
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-freflection-latest>
+)
+
+# GCC 16+ enables reflection automatically with -std=c++26. This warning
+# fires only at our configure time and is not exported to consumers.
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+    AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.0")
+    message(WARNING "GCC < 16 does not support C++26 reflection. "
+                    "Build from GCC trunk or use Bloomberg Clang fork.")
 endif()
 
 if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
