@@ -2,26 +2,17 @@
 
 **C++26 reflection utilities. Header-only. Zero dependencies. Zero boilerplate.**
 
-Turn this:
-
 ```cpp
-// nlohmann/json — 12 lines of boilerplate PER STRUCT
 struct Trade {
     int id; std::string symbol; double price;
 };
-NLOHMANN_DEFINE_TYPE_INTRUSIVE(Trade, id, symbol, price) // manual field listing
+
+Trade t{1, "MSFT", 420.69};
+auto json = reflect::to_json(t);        // {"id":1,"symbol":"MSFT","price":420.69}
+auto t2   = reflect::from_json<Trade>(json);
 ```
 
-Into this:
-
-```cpp
-// reflect — zero boilerplate, ever
-struct Trade {
-    int id; std::string symbol; double price;
-};
-auto json = reflect::to_json(trade);        // just works
-auto t    = reflect::from_json<Trade>(json); // just works
-```
+No macros. No code generation. Add a field, JSON updates automatically.
 
 ---
 
