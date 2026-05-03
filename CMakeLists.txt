@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(reflect
-    VERSION 0.2.0
+    VERSION 0.2.1
     DESCRIPTION "C++26 reflection utilities — header-only, zero dependencies"
     LANGUAGES CXX
 )
