@@ -80,6 +80,14 @@ constexpr auto to_ref_tuple(T& obj) {
 
 template <reflectable T, typename Tuple>
 constexpr T from_tuple(Tuple const& t) {
+    // Require exact size match. A shorter tuple would aggregate-initialize
+    // the leading fields and silently default the rest — surprising for
+    // a "↔" conversion. A longer tuple is already a hard error from the
+    // brace-init list, but we catch it here too with a clearer message.
+    static_assert(
+        std::tuple_size_v<std::remove_cvref_t<Tuple>>
+            == detail::tuple_members_of(^^T).size(),
+        "from_tuple: tuple size must equal the struct's field count.");
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
         return T{std::get<Is>(t)...};
     }(std::make_index_sequence<std::tuple_size_v<std::remove_cvref_t<Tuple>>>{});

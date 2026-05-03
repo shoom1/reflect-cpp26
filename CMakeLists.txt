@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(reflect
-    VERSION 0.2.0
+    VERSION 0.2.1
     DESCRIPTION "C++26 reflection utilities — header-only, zero dependencies"
     LANGUAGES CXX
 )
@@ -17,16 +17,21 @@ target_include_directories(reflect INTERFACE
 # configure error ("cxx_std_26 is not known to CXX compiler").
 target_compile_options(reflect INTERFACE -std=c++26)
 
-# Detect compiler and add reflection flags
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # Bloomberg Clang fork
-    target_compile_options(reflect INTERFACE -freflection-latest)
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    # GCC 16+ — reflection is enabled automatically with -std=c++26
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.0")
-        message(WARNING "GCC < 16 does not support C++26 reflection. "
-                        "Build from GCC trunk or use Bloomberg Clang fork.")
-    endif()
+# Compiler-specific reflection flag. Wrapped in a generator expression
+# so the decision is made at the *consumer's* build time, not when this
+# package is configured/installed. Without this, installing after
+# configuring with Clang would leak -freflection-latest into a
+# downstream GCC consumer's build via the exported INTERFACE.
+target_compile_options(reflect INTERFACE
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-freflection-latest>
+)
+
+# GCC 16+ enables reflection automatically with -std=c++26. This warning
+# fires only at our configure time and is not exported to consumers.
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+    AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.0")
+    message(WARNING "GCC < 16 does not support C++26 reflection. "
+                    "Build from GCC trunk or use Bloomberg Clang fork.")
 endif()
 
 if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
@@ -39,9 +44,9 @@ endif()
 # Listed explicitly rather than file(GLOB ...): a glob runs at configure
 # time, so a new test_xxx.cpp added on disk wouldn't be picked up until
 # CMake re-configures. With an explicit list, adding a test is a 20-second
-# tax for guaranteed correctness — a missing entry here surfaces as a
-# linker/test-discovery failure on the next build, not a silently-skipped
-# test.
+# tax for guaranteed determinism. The downside — a forgotten entry would
+# silently skip the test rather than failing the build — is caught by
+# scripts/verify-tests-listed.sh, run as a CI pre-flight step.
 set(REFLECT_TEST_SOURCES
     tests/test_args.cpp
     tests/test_critical_issues.cpp
@@ -59,6 +64,27 @@ if (REFLECT_BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
         add_executable(${test_target} ${test_src})
         target_link_libraries(${test_target} PRIVATE reflect)
         add_test(NAME ${test_name} COMMAND ${test_target})
+    endforeach()
+
+    # Compile-failure tests: each source listed here MUST fail to
+    # compile. The target is EXCLUDE_FROM_ALL (so the main build stays
+    # green) and ctest invokes cmake --build on it expecting non-zero
+    # exit (WILL_FAIL TRUE). A successful compile means the guard the
+    # test exercises has regressed.
+    set(REFLECT_COMPILE_FAIL_SOURCES
+        tests/compile_fail_map_string_view.cpp
+    )
+    foreach(cf_src ${REFLECT_COMPILE_FAIL_SOURCES})
+        get_filename_component(cf_name ${cf_src} NAME_WE)
+        set(cf_target reflect_${cf_name})
+        add_executable(${cf_target} EXCLUDE_FROM_ALL ${cf_src})
+        target_link_libraries(${cf_target} PRIVATE reflect)
+        add_test(
+            NAME ${cf_name}
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
+                    --target ${cf_target} --config $<CONFIG>
+        )
+        set_tests_properties(${cf_name} PROPERTIES WILL_FAIL TRUE)
     endforeach()
 endif()
 

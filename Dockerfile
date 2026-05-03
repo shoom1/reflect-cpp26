@@ -41,25 +41,30 @@ RUN apt-get update \
         zlib1g-dev \
  && rm -rf /var/lib/apt/lists/*
 
-# Pin to a specific commit for reproducible builds. Update intentionally
-# by changing this value (and recording why in the commit message).
+# Pinned to a specific upstream commit for reproducible builds. Bumping
+# this is a deliberate three-step change:
+#   1. update the SHA below
+#   2. rebuild via the "Build clang-p2996 image" workflow
+#      (it tags the image :p2996-<short SHA>)
+#   3. update the matching tag in .github/workflows/ci.yml
+#
 # To find the latest commit on the p2996 branch:
 #   git ls-remote https://github.com/bloomberg/clang-p2996.git refs/heads/p2996
-ARG P2996_REF=p2996
+ARG P2996_REF=9ffb96e3ce362289008e14ad2a79a249f58aa90a
 ARG INSTALL_PREFIX=/opt/clang-p2996
 ARG COMPILE_JOBS=2
 ARG LINK_JOBS=1
 
 WORKDIR /src
 
-# Shallow clone of the p2996 branch — saves ~80% of clone time/disk vs full
-# history. Then check out the specific commit if requested.
+# Shallow-clone the p2996 branch tip (~80% smaller than full history),
+# then fetch and check out the pinned commit. Direct shallow clone of an
+# arbitrary SHA isn't supported by GitHub's smart-HTTP protocol, so the
+# branch hop is necessary.
 RUN git clone --depth 1 --branch p2996 \
         https://github.com/bloomberg/clang-p2996.git . \
- && if [ "${P2996_REF}" != "p2996" ]; then \
-        git fetch --depth 1 origin "${P2996_REF}" \
-     && git checkout "${P2996_REF}"; \
-    fi
+ && git fetch --depth 1 origin "${P2996_REF}" \
+ && git checkout "${P2996_REF}"
 
 # Configure: clang frontend only, libc++/libc++abi/libunwind runtimes,
 # x86_64 target only, Release mode. This trims the build by an order of

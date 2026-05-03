@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
   workflow_dispatch:
 
@@ -15,22 +15,40 @@ permissions:
   packages: read
 
 jobs:
+  # Cheap host-level pre-flight checks. Cumulatively run in seconds and
+  # gate the heavier container jobs so a misconfiguration fails fast on
+  # the host instead of after a slow image pull.
+  preflight:
+    name: Pre-flight checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify CI image tag matches Dockerfile pin
+        run: ./scripts/verify-image-pin.sh
+      - name: Verify all test files are listed in CMakeLists.txt
+        run: ./scripts/verify-tests-listed.sh
+
   build-and-test:
     name: Build & test (Bloomberg Clang P2996 fork)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: preflight
 
-    # Pull the prebuilt P2996 image from GHCR. To rebuild it, run the
-    # "Build clang-p2996 image" workflow manually (Actions tab).
+    # Pull the prebuilt P2996 image from GHCR. The :p2996-<short SHA>
+    # tag is immutable and must match the ARG P2996_REF pin in
+    # Dockerfile — bumping the P2996 ref is a coordinated change across
+    # both files plus a workflow-dispatched rebuild of the "Build
+    # clang-p2996 image" workflow. See Dockerfile for the full procedure.
     container:
-      image: ghcr.io/${{ github.repository_owner }}/clang-p2996:latest
+      image: ghcr.io/${{ github.repository_owner }}/clang-p2996:p2996-9ffb96e3ce36
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure
         run: |
@@ -45,3 +63,50 @@ jobs:
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+
+  # Verify the installed package is consumable from a fresh build
+  # directory via find_package(reflect). Catches export-contract bugs
+  # (e.g. compiler-specific flags leaking through the INTERFACE) that
+  # in-source-tree tests miss because they don't go through install.
+  install-smoke-test:
+    name: Install + consumer smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: preflight
+
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/clang-p2996:p2996-9ffb96e3ce36
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build & install reflect to temp prefix
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" \
+            -DCMAKE_INSTALL_PREFIX=/tmp/reflect-install \
+            -DREFLECT_BUILD_TESTS=OFF \
+            -DREFLECT_BUILD_EXAMPLES=OFF \
+            -DREFLECT_BUILD_BENCHMARKS=OFF
+          cmake --build build --parallel
+          cmake --install build
+
+      - name: Configure & build consumer against installed package
+        run: |
+          cmake -S tests/install-smoke-test -B build-consumer -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" \
+            -DCMAKE_PREFIX_PATH=/tmp/reflect-install
+          cmake --build build-consumer --parallel
+
+      - name: Run consumer
+        run: ./build-consumer/consumer
