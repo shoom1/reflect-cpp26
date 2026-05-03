@@ -20,10 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    # Pull the prebuilt P2996 image from GHCR. To rebuild it, run the
-    # "Build clang-p2996 image" workflow manually (Actions tab).
+    # Pull the prebuilt P2996 image from GHCR. The :p2996-<short SHA>
+    # tag is immutable and must match the ARG P2996_REF pin in
+    # Dockerfile — bumping the P2996 ref is a coordinated change across
+    # both files plus a workflow-dispatched rebuild of the "Build
+    # clang-p2996 image" workflow. See Dockerfile for the full procedure.
     container:
-      image: ghcr.io/${{ github.repository_owner }}/clang-p2996:latest
+      image: ghcr.io/${{ github.repository_owner }}/clang-p2996:p2996-9ffb96e3ce36
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
