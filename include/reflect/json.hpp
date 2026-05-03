@@ -79,12 +79,18 @@ namespace json_detail {
     }
 
     // ---- type categories for JSON dispatch ----
+    // json_map requires an *owning* std::string key. Accepting non-owning
+    // string-like keys (std::string_view, const char*) would silently
+    // dangle on deserialization — parse_string() returns a std::string
+    // by value, and emplacing it into a view-typed key stores a view
+    // into the temporary. Restricting the concept here keeps serialize
+    // and deserialize symmetric: both paths require owning keys.
     template <typename T>
     concept json_map = requires(T t) {
         typename T::key_type;
         typename T::mapped_type;
         { t.begin() } -> std::input_iterator;
-    } && reflect::is_string_like<typename T::key_type>;
+    } && std::same_as<std::remove_cvref_t<typename T::key_type>, std::string>;
 
     template <typename T>
     concept json_array = reflect::is_range<T> && !json_map<T>;
