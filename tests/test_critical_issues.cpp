@@ -194,8 +194,7 @@ void c5_nan_serialization() {
 } // anonymous namespace
 
 int main() {
-    std::cout << "=== reflect — critical-issue regression test ===\n"
-                 "See docs/notes/code-review-2026-04.md for context.\n";
+    std::cout << "=== reflect — critical-issue regression test ===\n";
 
     c1_reflectable_predicate();
     c2_int_round_trip();

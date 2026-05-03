@@ -28,4 +28,4 @@ docker run --rm \
     -v "$REPO_ROOT":/work \
     -w /work \
     "$IMAGE" \
-    bash -c "cmake --preset $PRESET && cmake --build --preset $PRESET"
+    bash -c 'cmake --preset "$1" && cmake --build --preset "$1"' bash "$PRESET"
