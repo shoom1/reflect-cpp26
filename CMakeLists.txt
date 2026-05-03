@@ -65,6 +65,27 @@ if (REFLECT_BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
         target_link_libraries(${test_target} PRIVATE reflect)
         add_test(NAME ${test_name} COMMAND ${test_target})
     endforeach()
+
+    # Compile-failure tests: each source listed here MUST fail to
+    # compile. The target is EXCLUDE_FROM_ALL (so the main build stays
+    # green) and ctest invokes cmake --build on it expecting non-zero
+    # exit (WILL_FAIL TRUE). A successful compile means the guard the
+    # test exercises has regressed.
+    set(REFLECT_COMPILE_FAIL_SOURCES
+        tests/compile_fail_map_string_view.cpp
+    )
+    foreach(cf_src ${REFLECT_COMPILE_FAIL_SOURCES})
+        get_filename_component(cf_name ${cf_src} NAME_WE)
+        set(cf_target reflect_${cf_name})
+        add_executable(${cf_target} EXCLUDE_FROM_ALL ${cf_src})
+        target_link_libraries(${cf_target} PRIVATE reflect)
+        add_test(
+            NAME ${cf_name}
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
+                    --target ${cf_target} --config $<CONFIG>
+        )
+        set_tests_properties(${cf_name} PROPERTIES WILL_FAIL TRUE)
+    endforeach()
 endif()
 
 # Examples

@@ -15,10 +15,22 @@ permissions:
   packages: read
 
 jobs:
+  # Cheap host-level pre-flight: ensure the image tag pulled by later
+  # jobs matches the upstream P2996 commit pinned in Dockerfile. Catches
+  # the human error of bumping one without the other.
+  verify-image-pin:
+    name: Verify CI image tag matches Dockerfile pin
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./scripts/verify-image-pin.sh
+
   build-and-test:
     name: Build & test (Bloomberg Clang P2996 fork)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: verify-image-pin
 
     # Pull the prebuilt P2996 image from GHCR. The :p2996-<short SHA>
     # tag is immutable and must match the ARG P2996_REF pin in
@@ -48,3 +60,50 @@ jobs:
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+
+  # Verify the installed package is consumable from a fresh build
+  # directory via find_package(reflect). Catches export-contract bugs
+  # (e.g. compiler-specific flags leaking through the INTERFACE) that
+  # in-source-tree tests miss because they don't go through install.
+  install-smoke-test:
+    name: Install + consumer smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: verify-image-pin
+
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/clang-p2996:p2996-9ffb96e3ce36
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build & install reflect to temp prefix
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" \
+            -DCMAKE_INSTALL_PREFIX=/tmp/reflect-install \
+            -DREFLECT_BUILD_TESTS=OFF \
+            -DREFLECT_BUILD_EXAMPLES=OFF \
+            -DREFLECT_BUILD_BENCHMARKS=OFF
+          cmake --build build --parallel
+          cmake --install build
+
+      - name: Configure & build consumer against installed package
+        run: |
+          cmake -S tests/install-smoke-test -B build-consumer -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" \
+            -DCMAKE_PREFIX_PATH=/tmp/reflect-install
+          cmake --build build-consumer --parallel
+
+      - name: Run consumer
+        run: ./build-consumer/consumer
