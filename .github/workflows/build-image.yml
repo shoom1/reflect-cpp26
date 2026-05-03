@@ -53,6 +53,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Resolve the P2996 ref we'll actually build. Default: read the
+      # pinned ARG P2996_REF from Dockerfile. Override: workflow input.
+      # The resolved SHA drives the image tag so CI can pin to a
+      # toolchain-versioned tag instead of :latest.
+      - name: Resolve P2996 ref
+        id: p2996
+        run: |
+          if [ -n "${{ inputs.p2996_ref }}" ]; then
+            REF="${{ inputs.p2996_ref }}"
+          else
+            REF=$(grep -E '^ARG P2996_REF=' Dockerfile | head -1 | cut -d= -f2)
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "short=${REF:0:12}" >> "$GITHUB_OUTPUT"
+          echo "Building with P2996_REF=$REF (tag suffix: ${REF:0:12})"
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -62,7 +78,9 @@ jobs:
           # CI runners have ~7 GB RAM and 2 CPUs — default COMPILE_JOBS=2,
           # LINK_JOBS=1 fits comfortably. Override here if runners change.
           build-args: |
-            ${{ inputs.p2996_ref != '' && format('P2996_REF={0}', inputs.p2996_ref) || '' }}
+            P2996_REF=${{ steps.p2996.outputs.ref }}
+          # :latest floats and is convenient for ad-hoc pulls.
+          # :p2996-<short SHA> is the immutable tag CI pins to.
           tags: |
             ghcr.io/${{ github.repository_owner }}/clang-p2996:latest
-            ghcr.io/${{ github.repository_owner }}/clang-p2996:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/clang-p2996:p2996-${{ steps.p2996.outputs.short }}
